@@ -14,13 +14,13 @@ classdef LC400 < mic.Base
         
         cName = 'LC400-UI'
         
-        dWidth = 900
+        dWidth = 940
         dHeight = 300
         
-        dWidthPanelAxes = 680
+        dWidthPanelAxes = 700
         dHeightPanelAxes = 280
-        dWidthAxes1D = 300
-        dHeightAxes = 190
+        dWidthAxes1D = 360
+        dHeightAxes = 220
         
         dHeightPanelWavetable = 135
         dWidthPanelWavetable = 200
@@ -235,6 +235,39 @@ classdef LC400 < mic.Base
                             
         end
         
+        function plotDefault(this)
+            this.plotDefault1D()
+            this.plotDefault2D()
+        end
+        
+        function plotDefault2D(this)
+            
+            if ~ishandle(this.hPanel) || ... 
+               ~ishandle(this.hAxes2D) 
+                return
+            end
+            
+            xlim(this.hAxes2D, [-1 1])
+            ylim(this.hAxes2D, [-1 1])
+            title(this.hAxes2D, 'x(t) vs. y(t)')
+            
+        end
+        
+        
+        function plotDefault1D(this)
+            
+            if ~ishandle(this.hPanel) || ... 
+               ~ishandle(this.hAxes1D) 
+                return
+            end
+            
+            xlabel(this.hAxes1D, 'Time [ms]')
+            ylabel(this.hAxes1D, 'Amplitude')
+            title(this.hAxes1D, 'wavetable x(t) and y(t)');
+            
+        end
+        
+        
         function plotRecorded(this)
             this.plotRecorded1D()
             this.plotRecorded2D()
@@ -265,8 +298,8 @@ classdef LC400 < mic.Base
 
             xlabel(this.hAxes1D, 'Time [ms]')
             ylabel(this.hAxes1D, 'Amplitude')
-            title(this.hAxes1D, 'Waveform');
-            legend(this.hAxes1D, 'ch1 (x) sensor','ch2 (y)sensor', 'ch1 (x) command', 'ch2 (y) command');
+            title(this.hAxes1D, 'recorded x(t) and y(t)');
+            legend(this.hAxes1D, 'ch1 (x) command','ch2 (y) command', 'ch1 (x) sensor', 'ch2 (y) sensor');
             xlim(this.hAxes1D, [0 max(this.dTimeRecord * 1000)])
             ylim(this.hAxes1D, [-1 1])
             
@@ -534,14 +567,14 @@ classdef LC400 < mic.Base
                 'Units', 'pixels',...
                 'Title', '',...
                 'Clipping', 'on',...
-                'BackgroundColor', [1 1 1], ...
+                ... %'BackgroundColor', [1 1 1], ...
                 'BorderType', 'none', ...
                 'Position', mic.Utils.lt2lb([dLeft dTop this.dWidthPanelAxes this.dHeightPanelAxes], this.hPanel) ...
             );
             drawnow;        
             
-            dLeft = 60;
-            dTop = 30;
+            dLeft = 40;
+            dTop = 20;
             dSep = 40;
             
             this.hAxes1D = axes(...
@@ -566,6 +599,7 @@ classdef LC400 < mic.Base
                 );
             
             dLeft = dLeft + this.dHeightAxes + dSep;
+            this.plotDefault();
             
         end
         
