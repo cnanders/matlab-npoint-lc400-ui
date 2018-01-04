@@ -7,6 +7,9 @@ classdef LC400 < mic.Base
     
     properties (Access = private)
         
+        % {uint8 24x24} - images for the device real/virtual toggle
+        u8ToggleOn = imread(fullfile(mic.Utils.pathImg(), 'toggle', 'horiz-1', 'toggle-horiz-24-true.png'));     
+        u8ToggleOff = imread(fullfile(mic.Utils.pathImg(), 'toggle', 'horiz-1', 'toggle-horiz-24-false-yellow.png'));           
         
         hAxes2D
         hAxes2DSim
@@ -14,22 +17,23 @@ classdef LC400 < mic.Base
         
         cName = 'Test'
         
-        dWidth = 1040
-        dHeight = 220
+        dWidth = 540
+        dHeight = 390
         
-        dWidthPanelAxes = 700
-        dHeightPanelAxes = 280
-        dWidthAxes1D = 360
+        dWidthPanelAxes = 620
+        dHeightPanelAxes = 240
+        dWidthAxes1D = 270
         dHeightAxes = 160
         
+        dWidthPanelWavetable = 500
         dHeightPanelWavetable = 135
-        dWidthPanelWavetable = 200
         
+        dWidthPanelMotion = 500
         dHeightPanelMotion = 135
-        dWidthPanelMotion = 200
         
-        dWidthButton = 150
+        dWidthButton = 110
         dHeightButton = 24
+        dWidthEdit = 80
                 
         hPanel
         hPanelWavetable
@@ -48,7 +52,11 @@ classdef LC400 < mic.Base
         uiButtonRead
         uiEditTimeRead
         
-        uiGetSetLogicalActive
+        uiToggleDevice
+        uitxLabelDevice
+        lAskOnDeviceClick = true
+        
+        uiGetSetLogicalActive % Motion Start / Stop
         uiButtonRecord
         uiEditTimeRecord
         
@@ -61,9 +69,7 @@ classdef LC400 < mic.Base
         % {mic.Clock 1x1} clock - the clock
         clock
         
-        % {logical 1x1} true when using device, false when using virtual
-        % device
-        lActive
+        
         
         % {double 1xm} storage for normalized wavetable values in [-1 1]
         dAmpCh1
@@ -111,7 +117,7 @@ classdef LC400 < mic.Base
         function setDevice(this, device)
             
             if isempty(device)
-                this.uitDevice.disable();
+                this.uiToggleDevice.disable();
                 this.lDeviceIsSet = false;
                 return;
             end
@@ -119,8 +125,7 @@ classdef LC400 < mic.Base
             if this.isDevice(device)
                 this.device = device;
                 this.lDeviceIsSet = true;
-                this.uitDevice.enable();
-                
+                this.uiToggleDevice.enable();
                 
                 % Connect the mic.ui.device.GetSetLogical to a device
                 device = npoint.ui.GetSetLogicalFromLLC400(this.device, 'active');
@@ -151,15 +156,14 @@ classdef LC400 < mic.Base
                 cTitle = 'turnOn() Error';
                 msgbox(cMsg, cTitle, 'warn');
                 
-                this.uitDevice.set(false);
-                this.uitDevice.setTooltip(this.cTooltipDeviceOff);
+                this.uiToggleDevice.set(false);
+                this.uiToggleDevice.setTooltip(this.cTooltipDeviceOff);
             
                 return
             end
             
-            this.lActive = true;
-            this.uitDevice.set(true);
-            this.uitDevice.setTooltip(this.cTooltipDeviceOn);
+            this.uiToggleDevice.set(true);
+            this.uiToggleDevice.setTooltip(this.cTooltipDeviceOn);
             
             this.uiGetSetLogicalActive.turnOn();
 
@@ -174,9 +178,8 @@ classdef LC400 < mic.Base
                 this.setDeviceVirtual(this.newDeviceVirtual());
             end
             
-            this.lActive = false;
-            this.uitDevice.set(false);
-            this.uitDevice.setTooltip(this.cTooltipDeviceOff);
+            this.uiToggleDevice.set(false);
+            this.uiToggleDevice.setTooltip(this.cTooltipDeviceOff);
             
             this.uiGetSetLogicalActive.turnOff();
             notify(this, 'eTurnOff');
@@ -189,13 +192,14 @@ classdef LC400 < mic.Base
                 'Units', 'pixels', ...
                 'Title', sprintf('nPoint LC400 Control (%s)', this.cName), ...
                 'Clipping', 'on', ...
-                'BackgroundColor', [200 200 200]./255, ...
-                'BorderType', 'none', ...
+                ...%'BackgroundColor', [200 200 200]./255, ...
+                ...%'BorderType', 'none', ...
                 ... % 'BorderWidth',0, ... 
                 'Position', mic.Utils.lt2lb([dLeft dTop this.dWidth this.dHeight], hParent)...
             );
             drawnow;
             
+            this.buildUiToggleDevice();
             this.buildPanelWavetable();
             this.buildPanelMotion();
             this.buildPanelAxes();
@@ -270,6 +274,8 @@ classdef LC400 < mic.Base
         
         
         function plotRecorded(this)
+            
+            % set(this.hPanelAxes, 'Title', 'Recorded. Left: x(t), y(t). Right: x(t) vs. y(t)');
             this.plotRecorded1D()
             this.plotRecorded2D()
         end
@@ -351,6 +357,8 @@ classdef LC400 < mic.Base
         
         function plotWavetable(this)
             
+            % set(this.hPanelAxes, 'Title', 'Wavetable. Left: x(t), y(t), Right: x(t) vs. y(t)');
+            
             this.plotWavetable1D()
             this.plotWavetable2D()
             
@@ -395,7 +403,7 @@ classdef LC400 < mic.Base
             % real hardware, turn it off (make it talk to virtual) while
             % reading so it doesn't interrupt
             
-            if (this.lActive)
+            if (this.uiToggleDevice.get())
                 lVal = this.uiGetSetLogicalActive.get();
                 this.uiGetSetLogicalActive.turnOff();
                 this.uiGetSetLogicalActive.set(lVal); % so it shows "real" value when in virtual mode
@@ -414,7 +422,7 @@ classdef LC400 < mic.Base
         function uiCommPrepUndo(this)
             
             % Re-enable
-            if (this.lActive)
+            if (this.uiToggleDevice.get())
                 this.uiGetSetLogicalActive.turnOn()
             end
             this.uiGetSetLogicalActive.enable();
@@ -422,6 +430,14 @@ classdef LC400 < mic.Base
             this.uiButtonWrite.enable();
             
             
+        end
+        
+        function onUiToggleDeviceChange(this, src, evt)
+            if src.get()
+                this.turnOn();
+            else
+                this.turnOff();
+            end
         end
         
         function onRead(this, src, evt)
@@ -538,8 +554,10 @@ classdef LC400 < mic.Base
                 'ceVararginCommandToggle', ceVararginCommandToggle, ...
                 'lShowInitButton', false, ...
                 'lShowDevice', false, ...
+                'lShowName', false, ...
                 'cName', sprintf('npoint-lc400-ui-%s', this.cName), ...
                 'dWidthName', 50, ...
+                'dWidthCommand', this.dWidthButton - 24, ...
                 'lShowLabels', false, ...
                 'cLabel', 'Scanning:'...
             );
@@ -550,10 +568,53 @@ classdef LC400 < mic.Base
         function init(this)
             
             this.setDeviceVirtual(this.newDeviceVirtual());
+            this.initUiToggleDevice();
             this.initPanelWavetable();
             this.initPanelMotion();
         
         end
+        
+        function initUiToggleDevice(this)
+            
+            
+            
+            this.uitxLabelDevice = mic.ui.common.Text(...
+                'cVal', 'Api', ...
+                'cAlign', 'center'...
+            );
+        
+            st1 = struct();
+            st1.lAsk        = this.lAskOnDeviceClick;
+            st1.cTitle      = 'Switch?';
+            st1.cQuestion   = 'Do you want to change from the virtual LC400 to the real LC400?';
+            st1.cAnswer1    = 'Yes of course!';
+            st1.cAnswer2    = 'No not yet.';
+            st1.cDefault    = st1.cAnswer2;
+
+
+            st2 = struct();
+            st2.lAsk        = this.lAskOnDeviceClick;
+            st2.cTitle      = 'Switch?';
+            st2.cQuestion   = 'Do you want to change from the real LC400 to the virtual LC400?';
+            st2.cAnswer1    = 'Yes of course!';
+            st2.cAnswer2    = 'No not yet.';
+            st2.cDefault    = st2.cAnswer2;
+
+            this.uiToggleDevice = mic.ui.common.Toggle( ...
+                'cTextFalse', 'enable', ...   
+                'cTextTrue', 'disable', ...  
+                'lImg', true, ...
+                'u8ImgOff', this.u8ToggleOff, ...
+                'u8ImgOn', this.u8ToggleOn, ...
+                'stF2TOptions', st1, ...
+                'stT2FOptions', st2 ...
+            );
+        
+            this.uiToggleDevice.disable();
+            addlistener(this.uiToggleDevice,   'eChange', @this.onUiToggleDeviceChange);
+            
+        end
+        
         
         function buildPanelAxes(this)
             
@@ -561,25 +622,27 @@ classdef LC400 < mic.Base
                 return
             end
             
-            dTop = 0
+            dTop = 20;
             dLeft = 10 + this.dWidthPanelWavetable + 10 + this.dWidthPanelMotion + 10;
-            
+            dLeft = 0
+            dTop = 150
             
             this.hPanelAxes = uipanel(...
                 'Parent', this.hPanel,...
                 'Units', 'pixels',...
-                'Title', '',...
+                ...%'Title', 'Plot',...
+                'Title', blanks(0), ...
                 'Clipping', 'on',...
-                ... %'BackgroundColor', [1 1 1], ...
-                'BackgroundColor', [200 200 200]./255, ...
+                'BackgroundColor', [1 1 1], ...
+                ... %'BackgroundColor', [100 100 100]./255, ...
                 'BorderType', 'none', ...
                 'Position', mic.Utils.lt2lb([dLeft dTop this.dWidthPanelAxes this.dHeightPanelAxes], this.hPanel) ...
             );
             drawnow;        
             
-            dLeft = 40;
-            dTop = 20;
-            dSep = 40;
+            dLeft = 50;
+            dTop = 30;
+            dSep = 30;
             
             this.hAxes1D = axes(...
                 'Parent', this.hPanelAxes,...
@@ -609,11 +672,11 @@ classdef LC400 < mic.Base
         
         
         function l = isActive(this)
-            l = this.lActive;
+            l = this.uiToggleDevice.get();
         end
         
         function device = getDevice(this)
-            if this.lActive
+            if this.uiToggleDevice.get()
                 device = this.device;
             else
                 device = this.deviceVirtual;
@@ -636,12 +699,21 @@ classdef LC400 < mic.Base
             
         end
         
-        
+        function buildUiToggleDevice(this)
+            
+            dLeft = 10;
+            dTop = 20;
+            
+            this.uitxLabelDevice.build(this.hPanel, dLeft, dTop, 24, 24);
+            this.uiToggleDevice.build(this.hPanel, dLeft, dTop + 24, 24, 24);
+            this.uiToggleDevice.disable();
+            
+        end
         
         
         function buildPanelWavetable(this)
             
-            dLeft = 10;
+            dLeft = 50;
             dTop = 20;
             
             this.hPanelWavetable = uipanel( ...
@@ -654,24 +726,30 @@ classdef LC400 < mic.Base
             );
             drawnow;
             
-            dSep = 30;
+            dSep = 10;
             dTop = 20;
+            dLeft = 10;
             
             this.uiButtonWrite.build(this.hPanelWavetable, dLeft, dTop, this.dWidthButton, this.dHeightButton); 
-            dTop = dTop + dSep;
+            % dTop = dTop + dSep;
+            dLeft = dLeft + this.dWidthButton + dSep;
             
             this.uiButtonRead.build(this.hPanelWavetable, dLeft, dTop, this.dWidthButton, this.dHeightButton); 
-            dTop = dTop + dSep;
+            % dTop = dTop + dSep;
+            dLeft = dLeft + this.dWidthButton + dSep;
             
-            this.uiEditTimeRead.build(this.hPanelWavetable, dLeft, dTop, this.dWidthButton, this.dHeightButton); 
-            dTop = dTop + dSep;
+            dTop = 10;
+            this.uiEditTimeRead.build(this.hPanelWavetable, dLeft, dTop, this.dWidthEdit, this.dHeightButton); 
+            % dTop = dTop + dSep;
+            dLeft = dLeft + this.dWidthEdit + dSep;
             
         end
         
         function buildPanelMotion(this)
             
             dLeft = 10 + this.dWidthPanelWavetable + 10;
-            dTop = 20;
+            dTop = 70;
+            dLeft = 50;
             
             this.hPanelMotion = uipanel( ...
                 'Parent', this.hPanel, ...
@@ -683,18 +761,22 @@ classdef LC400 < mic.Base
             );
             drawnow;
             
-            dSep = 30;
+            dSep = 10;
             dTop = 20;
             dLeft = 10;
             
             this.uiGetSetLogicalActive.build(this.hPanelMotion, dLeft, dTop); 
-            dTop = dTop + dSep;
+            % dTop = dTop + dSep;
+            dLeft = dLeft + this.dWidthButton + dSep;
             
             this.uiButtonRecord.build(this.hPanelMotion, dLeft, dTop, this.dWidthButton, this.dHeightButton); 
-            dTop = dTop + dSep;
+            % dTop = dTop + dSep;
+            dLeft = dLeft + this.dWidthButton + dSep;
             
-            this.uiEditTimeRecord.build(this.hPanelMotion, dLeft, dTop, this.dWidthButton, this.dHeightButton); 
-            dTop = dTop + dSep;
+            dTop = 10;
+            this.uiEditTimeRecord.build(this.hPanelMotion, dLeft, dTop, this.dWidthEdit, this.dHeightButton); 
+            % dTop = dTop + dSep;
+            dLeft = dLeft + this.dWidthEdit + dSep;
             
         end
         
