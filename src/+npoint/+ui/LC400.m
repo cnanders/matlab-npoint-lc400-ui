@@ -14,13 +14,13 @@ classdef LC400 < mic.Base
         
         cName = 'LC400-UI'
         
-        dWidth = 940
-        dHeight = 300
+        dWidth = 1040
+        dHeight = 220
         
         dWidthPanelAxes = 700
         dHeightPanelAxes = 280
         dWidthAxes1D = 360
-        dHeightAxes = 220
+        dHeightAxes = 160
         
         dHeightPanelWavetable = 135
         dWidthPanelWavetable = 200
@@ -190,6 +190,7 @@ classdef LC400 < mic.Base
                 'Title', blanks(0), ...
                 'Clipping', 'on', ...
                 'BackgroundColor', [200 200 200]./255, ...
+                'BorderType', 'none', ...
                 ... % 'BorderWidth',0, ... 
                 'Position', mic.Utils.lt2lb([dLeft dTop this.dWidth this.dHeight], hParent)...
             );
@@ -197,7 +198,7 @@ classdef LC400 < mic.Base
             
             this.buildPanelWavetable();
             this.buildPanelMotion();
-            this.buildAllAxes();
+            this.buildPanelAxes();
             
             
         end
@@ -512,7 +513,7 @@ classdef LC400 < mic.Base
             );
         
             this.uiEditTimeRecord = mic.ui.common.Edit(...
-                'cLabel', 'Read Time (ms)', ...
+                'cLabel', 'Record Time (ms)', ...
                 'cType', 'd', ...
                 'lShowLabel', true);
             
@@ -554,20 +555,23 @@ classdef LC400 < mic.Base
         
         end
         
-        function buildAllAxes(this)
+        function buildPanelAxes(this)
             
             if ~ishandle(this.hPanel)
                 return
             end
             
-            dTop = 10;
-            dLeft = 230;
+            dTop = 0
+            dLeft = 10 + this.dWidthPanelWavetable + 10 + this.dWidthPanelMotion + 10;
+            
+            
             this.hPanelAxes = uipanel(...
                 'Parent', this.hPanel,...
                 'Units', 'pixels',...
                 'Title', '',...
                 'Clipping', 'on',...
                 ... %'BackgroundColor', [1 1 1], ...
+                'BackgroundColor', [200 200 200]./255, ...
                 'BorderType', 'none', ...
                 'Position', mic.Utils.lt2lb([dLeft dTop this.dWidthPanelAxes this.dHeightPanelAxes], this.hPanel) ...
             );
@@ -638,13 +642,14 @@ classdef LC400 < mic.Base
         function buildPanelWavetable(this)
             
             dLeft = 10;
-            dTop = 10;
+            dTop = 20;
             
             this.hPanelWavetable = uipanel( ...
                 'Parent', this.hPanel, ...
                 'Units', 'pixels', ...
                 'Title', 'Wavetable', ... % blanks(0), ...
                 'Clipping', 'on', ...
+                'BorderType', 'none', ...
                 'Position', mic.Utils.lt2lb([dLeft dTop this.dWidthPanelWavetable this.dHeightPanelWavetable], this.hPanel)...
             );
             drawnow;
@@ -665,20 +670,22 @@ classdef LC400 < mic.Base
         
         function buildPanelMotion(this)
             
-            dLeft = 10;
-            dTop = 155;
+            dLeft = 10 + this.dWidthPanelWavetable + 10;
+            dTop = 20;
             
             this.hPanelMotion = uipanel( ...
                 'Parent', this.hPanel, ...
                 'Units', 'pixels', ...
                 'Title', 'Motion', ... % blanks(0), ...
                 'Clipping', 'on', ...
+                'BorderType', 'none', ...
                 'Position', mic.Utils.lt2lb([dLeft dTop this.dWidthPanelMotion this.dHeightPanelMotion], this.hPanel)...
             );
             drawnow;
             
             dSep = 30;
             dTop = 20;
+            dLeft = 10;
             
             this.uiGetSetLogicalActive.build(this.hPanelMotion, dLeft, dTop); 
             dTop = dTop + dSep;
