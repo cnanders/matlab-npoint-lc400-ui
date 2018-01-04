@@ -17,18 +17,18 @@ classdef LC400 < mic.Base
         
         cName = 'Test'
         
-        dWidth = 540
-        dHeight = 390
+        dWidth = 1010
+        dHeight = 270
         
-        dWidthPanelAxes = 620
-        dHeightPanelAxes = 240
-        dWidthAxes1D = 270
-        dHeightAxes = 160
+        dWidthPanelAxes = 610
+        dHeightPanelAxes = 250
+        dWidthAxes1D = 325
+        dHeightAxes = 190
         
-        dWidthPanelWavetable = 500
+        dWidthPanelWavetable = 350
         dHeightPanelWavetable = 135
         
-        dWidthPanelMotion = 500
+        dWidthPanelMotion = 350
         dHeightPanelMotion = 135
         
         dWidthButton = 110
@@ -53,7 +53,7 @@ classdef LC400 < mic.Base
         uiEditTimeRead
         
         uiToggleDevice
-        uitxLabelDevice
+        uiTextLabelDevice
         lAskOnDeviceClick = true
         
         uiGetSetLogicalActive % Motion Start / Stop
@@ -109,6 +109,34 @@ classdef LC400 < mic.Base
             end
                         
             this.init();
+            
+        end
+        
+        
+        function st = save(this)
+            st = struct();
+        end
+        
+        function load(this, st)
+            % nothing
+        end
+        
+        function delete(this)
+            
+            this.msg('delete', this.u8_MSG_TYPE_CLASS_INIT_DELETE);
+            this.lDeleted = true;
+            this.save();
+            
+            delete(this.uiButtonWrite)
+            delete(this.uiButtonRead)
+            delete(this.uiEditTimeRead)
+        
+            delete(this.uiToggleDevice)
+            delete(this.uiTextLabelDevice)
+            
+            delete(this.uiGetSetLogicalActive) % Motion Start / Stop
+            delete(this.uiButtonRecord)
+            delete(this.uiEditTimeRecord)
             
         end
         
@@ -578,7 +606,7 @@ classdef LC400 < mic.Base
             
             
             
-            this.uitxLabelDevice = mic.ui.common.Text(...
+            this.uiTextLabelDevice = mic.ui.common.Text(...
                 'cVal', 'Api', ...
                 'cAlign', 'center'...
             );
@@ -623,9 +651,10 @@ classdef LC400 < mic.Base
             end
             
             dTop = 20;
-            dLeft = 10 + this.dWidthPanelWavetable + 10 + this.dWidthPanelMotion + 10;
-            dLeft = 0
-            dTop = 150
+            dLeft = 400;
+            
+            %dLeft = 0
+            %dTop = 150
             
             this.hPanelAxes = uipanel(...
                 'Parent', this.hPanel,...
@@ -641,7 +670,7 @@ classdef LC400 < mic.Base
             drawnow;        
             
             dLeft = 50;
-            dTop = 30;
+            dTop = 20;
             dSep = 30;
             
             this.hAxes1D = axes(...
@@ -704,7 +733,7 @@ classdef LC400 < mic.Base
             dLeft = 10;
             dTop = 20;
             
-            this.uitxLabelDevice.build(this.hPanel, dLeft, dTop, 24, 24);
+            this.uiTextLabelDevice.build(this.hPanel, dLeft, dTop, 24, 24);
             this.uiToggleDevice.build(this.hPanel, dLeft, dTop + 24, 24, 24);
             this.uiToggleDevice.disable();
             

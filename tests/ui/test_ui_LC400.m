@@ -23,7 +23,7 @@ cDir = fullfile( ...
 
 dScreenSize = get(0, 'ScreenSize');
         
-dWidth = 600;
+dWidth = 1060;
 dHeight = 500;
 
 hFigure = figure( ...
