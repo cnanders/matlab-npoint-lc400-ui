@@ -10,6 +10,9 @@ classdef LC400 < mic.Base
     
     properties (Access = private)
         
+        
+        lDeviceIsSet
+        
         % {uint8 24x24} - images for the device real/virtual toggle
         u8ToggleOn = imread(fullfile(mic.Utils.pathImg(), 'toggle', 'horiz-1', 'toggle-horiz-24-true.png'));     
         u8ToggleOff = imread(fullfile(mic.Utils.pathImg(), 'toggle', 'horiz-1', 'toggle-horiz-24-false-yellow.png'));           
@@ -63,7 +66,7 @@ classdef LC400 < mic.Base
         uiEditTimeRecord
         
         % {< noint.AbstractLC400 1x1}
-        device
+        device = []
         
         % {< noint.AbstractLC400 1x1}
         deviceVirtual
@@ -147,17 +150,16 @@ classdef LC400 < mic.Base
             
             if isempty(device)
                 this.uiToggleDevice.disable();
-                this.lDeviceIsSet = false;
+                this.device = device;
                 return;
             end
             
             if this.isDevice(device)
                 this.device = device;
-                this.lDeviceIsSet = true;
                 this.uiToggleDevice.enable();
                 
                 % Connect the mic.ui.device.GetSetLogical to a device
-                device = npoint.ui.GetSetLogicalFromLLC400(this.device, 'active');
+                device = npoint.device.GetSetLogicalFromLLC400(this.device, 'active');
                 this.uiGetSetLogicalActive.setDevice(device);
                                 
             end
@@ -178,7 +180,7 @@ classdef LC400 < mic.Base
         
         function turnOn(this)
         
-            if ~this.lDeviceIsSet
+            if isempty(this.device)
                 % show message
                 
                 cMsg = 'Cannot turn on mic.ui.device.* instances until a device that implements mic.interface.device.* has been provided with setDevice()';
@@ -192,11 +194,10 @@ classdef LC400 < mic.Base
             end
             
             this.uiToggleDevice.set(true);
-            this.uiToggleDevice.setTooltip(this.cTooltipDeviceOn);
-            
+            % this.uiToggleDevice.setTooltip(this.cTooltipDeviceOn);
             this.uiGetSetLogicalActive.turnOn();
 
-            notify(this, 'eTurnOn');
+            % notify(this, 'eTurnOn');
             
         end
         
@@ -208,10 +209,10 @@ classdef LC400 < mic.Base
             end
             
             this.uiToggleDevice.set(false);
-            this.uiToggleDevice.setTooltip(this.cTooltipDeviceOff);
+            % this.uiToggleDevice.setTooltip(this.cTooltipDeviceOff);
             
             this.uiGetSetLogicalActive.turnOff();
-            notify(this, 'eTurnOff');
+            % notify(this, 'eTurnOff');
         end
         
         function build(this, hParent, dLeft, dTop)
@@ -530,18 +531,23 @@ classdef LC400 < mic.Base
                 'cText', this.cLabelWrite, ...
                 'fhOnClick', @this.onWrite ...
             );
-            
-            
+        
+           
         
             this.uiButtonRead = mic.ui.common.Button(...
                 'cText', this.cLabelRead, ...
                 'fhOnClick', @this.onRead ...
             );
-        
+            
             this.uiEditTimeRead = mic.ui.common.Edit(...
                 'cLabel', 'Read Time (ms)', ...
                 'cType', 'd', ...
                 'lShowLabel', true);
+            
+            this.uiButtonWrite.setTooltip('Write the waveform data to the LC400 controller.  This can take several seconds');
+            this.uiButtonRead.setTooltip('Read the LC400 wavetables (from memory) and plot');
+            this.uiEditTimeRead.setTooltip('The time window for read  commands');
+
             
             % Default values
             this.uiEditTimeRead.setMax(2000);
@@ -561,6 +567,10 @@ classdef LC400 < mic.Base
                 'cLabel', 'Record Time (ms)', ...
                 'cType', 'd', ...
                 'lShowLabel', true);
+            
+            
+            this.uiButtonRecord.setTooltip('Record the commanded + servo values and plot');
+            this.uiEditTimeRecord.setTooltip('The time window for recording');            
             
             % Default values
             this.uiEditTimeRecord.setMax(2000);
