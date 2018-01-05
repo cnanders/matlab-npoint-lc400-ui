@@ -3,6 +3,9 @@ classdef LC400 < mic.Base
     %   Detailed explanation goes here
     
     properties
+        
+        cName = 'Test'
+
     end
     
     properties (Access = private)
@@ -15,7 +18,6 @@ classdef LC400 < mic.Base
         hAxes2DSim
         hAxes1D
         
-        cName = 'Test'
         
         dWidth = 1010
         dHeight = 270
@@ -124,7 +126,6 @@ classdef LC400 < mic.Base
         function delete(this)
             
             this.msg('delete', this.u8_MSG_TYPE_CLASS_INIT_DELETE);
-            this.lDeleted = true;
             this.save();
             
             delete(this.uiButtonWrite)
