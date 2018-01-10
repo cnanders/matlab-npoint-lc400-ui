@@ -11,6 +11,11 @@ classdef LC400 < mic.Base
         hAxes2D
         hAxes2DSim
         hAxes1D
+        hPanel
+        hPanelWavetable
+        hPanelMotion
+        hPanelAxes
+        hFigure
         
         cName = 'LC400-UI'
         
@@ -31,10 +36,7 @@ classdef LC400 < mic.Base
         dWidthButton = 150
         dHeightButton = 24
                 
-        hPanel
-        hPanelWavetable
-        hPanelMotion
-        hPanelAxes
+        
         
         % {function_handle 1x1} function called when user clicks write
         % @return [i32X, i32Y] wavetable values in [-2^20/2, +2^20/2] 
@@ -184,6 +186,20 @@ classdef LC400 < mic.Base
         
         function build(this, hParent, dLeft, dTop)
                     
+            this.buildPanel();
+            this.buildPanelWavetable();
+            this.buildPanelMotion();
+            this.buildAllAxes();
+            
+        end
+                
+        
+    end
+    
+    
+    methods (Access = private)
+        
+        function buildPanel(this)
             this.hPanel = uipanel( ...
                 'Parent', hParent, ...
                 'Units', 'pixels', ...
@@ -195,18 +211,8 @@ classdef LC400 < mic.Base
             );
             drawnow;
             
-            this.buildPanelWavetable();
-            this.buildPanelMotion();
-            this.buildAllAxes();
-            
-            
         end
-        
-        
-    end
-    
-    
-    methods (Access = private)
+                
         
         function plotRecorded2D(this)
             
