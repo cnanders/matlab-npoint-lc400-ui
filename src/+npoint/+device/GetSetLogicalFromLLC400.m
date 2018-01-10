@@ -31,10 +31,10 @@ classdef GetSetLogicalFromLLC400 < mic.interface.device.GetSetLogical
                     % Enable, then set active
                     this.comm.setWavetableEnable(uint8(1), lVal);
                     this.comm.setWavetableEnable(uint8(2), lVal);
-                    this.comm.setTwoWavetablesActive(lVal)
+                    this.comm.setTwoWavetablesActive(lVal);
                 else
                     % Set not active, then disable
-                    this.comm.setTwoWavetablesActive(lVal)
+                    this.comm.setTwoWavetablesActive(lVal);
                     this.comm.setWavetableEnable(uint8(1), lVal);
                     this.comm.setWavetableEnable(uint8(2), lVal);
                 end
@@ -46,7 +46,7 @@ classdef GetSetLogicalFromLLC400 < mic.interface.device.GetSetLogical
         end
         
         function l = isInitialized(this)
-            l = true
+            l = true;
         end
         
     end
