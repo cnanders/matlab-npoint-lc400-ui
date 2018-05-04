@@ -220,7 +220,7 @@ classdef LC400 < mic.Base
                 msgbox(cMsg, cTitle, 'warn');
                 
                 this.uiToggleDevice.set(false);
-                this.uiToggleDevice.setTooltip(this.cTooltipDeviceOff);
+                % this.uiToggleDevice.setTooltip(this.cTooltipDeviceOff);
             
                 return
             end
@@ -854,12 +854,14 @@ classdef LC400 < mic.Base
             this.uiGetSetLogicalActive.set(true);
             drawnow;
             
+            %{
             h = msgbox( ...
                 'The waveform has been written to the LC400 and scanning motion has started.', ...
                 'Success!', ...
                 'help', ...
                 'modal' ...
-            );     
+            ); 
+            %}
             
         end
         

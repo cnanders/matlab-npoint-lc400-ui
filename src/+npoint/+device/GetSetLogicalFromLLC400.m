@@ -19,7 +19,17 @@ classdef GetSetLogicalFromLLC400 < mic.interface.device.GetSetLogical
         function lReturn = get(this)
             switch (this.cProp)
                 case 'active'
-                lReturn = this.comm.getWavetableActive(1) && this.comm.getWavetableActive(2);
+                    lActive1 = this.comm.getWavetableActive(1);
+                    lActive2 = this.comm.getWavetableActive(2);
+                    if ~islogical(lActive1)
+                        lReturn = false;
+                        return
+                    end
+                    if ~islogical(lActive2)
+                        lReturn = false;
+                        return
+                    end
+                    lReturn =  lActive1 && lActive2;
             end
         end
 
