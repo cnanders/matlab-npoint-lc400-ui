@@ -19,6 +19,7 @@ classdef LC400 < mic.Base
         
         hAxes2D
         hAxes2DSim
+        hAxes2DInt
         hAxes1D
         hPanel
         hPanelWavetable
@@ -27,10 +28,10 @@ classdef LC400 < mic.Base
         hFigure
         
         
-        dWidth = 1000
+        dWidth = 1400
         dHeight = 430
         
-        dWidthPanelAxes = 1000
+        dWidthPanelAxes = 1400
         dHeightPanelAxes = 360
         dWidthAxes1D = 325 + 265
         dHeightAxes = 280
@@ -65,6 +66,8 @@ classdef LC400 < mic.Base
         uiEditOffsetX
         uiEditOffsetY
         
+        uiEditSigOfKernel
+        
         uiToggleDevice
         uiTextLabelDevice
         lAskOnDeviceClick = true
@@ -97,7 +100,7 @@ classdef LC400 < mic.Base
         dAmpRecordSensorCh2
         dTimeRecord
 
-        
+        dNumPixels = 220;
     end
     
     
@@ -367,6 +370,9 @@ classdef LC400 < mic.Base
             %dTop = dTop + dSep;
             %dLeft = 10;
             
+            dLeft = dLeft + 430;
+            this.uiEditSigOfKernel.build(this.hFigure, dLeft, dTop, this.dWidthEdit, this.dHeightButton); 
+            dLeft = dLeft + this.dWidthEdit + dSep;
                         
             
             this.buildPanelAxes();
@@ -376,8 +382,8 @@ classdef LC400 < mic.Base
         
         function plotRecorded2D(this)
             
-            if ~ishandle(this.hPanel) || ... 
-               ~ishandle(this.hAxes2D) 
+            if isempty(this.hPanel) || ~ishandle(this.hPanel) || ... 
+               isempty(this.hAxes2D) || ~ishandle(this.hAxes2D) 
                 return
             end
             
@@ -401,9 +407,76 @@ classdef LC400 < mic.Base
                             
         end
         
+        function plotRecorded2DInt(this)
+            this.plot2DInt(this.dAmpRecordSensorCh1, this.dAmpRecordSensorCh2);
+        end
+        
+        function plotWavetable2DInt(this)
+            this.plot2DInt(this.dAmpCh1, this.dAmpCh2);
+        end
+        
+        
+        
+        function plot2DInt(this, dX, dY)
+            
+            if isempty(this.hPanel) || ~ishandle(this.hPanel) || ... 
+               isempty(this.hAxes2DInt) || ~ishandle(this.hAxes2DInt) 
+                return
+            end
+            
+            
+            dInt = zeros(this.dNumPixels, this.dNumPixels);
+
+            % Map each (vx,vy) pair to its corresponding pixel in the pupil
+            % fill matrices.  For vy, need to flip its sign before
+            % computing the pixel because of the way matlab does y
+            % coordinates in an image plot
+
+            
+            dPixelX = round(dX * this.dNumPixels/2 + this.dNumPixels/2);
+            dPixelY = round(dY * this.dNumPixels/2 + this.dNumPixels/2);                  
+            
+
+            % If any of the pixels lie outside the matrix, discard them
+
+            dIndex = find(  dPixelX <= this.dNumPixels & ...
+                            dPixelX > 0 & ...
+                            dPixelY <= this.dNumPixels & ...
+                            dPixelY > 0 ...
+                            );
+
+            dPixelX = dPixelX(dIndex);
+            dPixelY = dPixelY(dIndex);
+
+            % Add a "1" at each pixel where (vx,vy) pairs reside.  We may end up adding
+            % "1" to a given pixel a few times - especially if the dwell is set to more
+            % than 1.
+
+            for n = 1:length(dPixelX)
+                dInt(dPixelY(n), dPixelX(n)) = dInt(dPixelY(n), dPixelX(n)) + 1;
+            end
+            
+            [dX, dY, dKernelInt] = this.getKernel();            
+
+            dInt = conv2(dInt, dKernelInt.^2,'same');
+            dInt = dInt./max(max(dInt));
+            
+            
+            imagesc(...
+                this.hAxes2DInt, ...
+                dInt);
+            axis(this.hAxes2DInt, 'image')
+            colormap(this.hAxes2DInt, 'jet');
+            set(this.hAxes2DInt,'XTickLabel',[]);
+            set(this.hAxes2DInt,'YTickLabel',[]);
+            title(this.hAxes2DInt, 'x(t) vs. y(t) intensity')
+        end
+        
+        
         function plotDefault(this)
             this.plotDefault1D()
             this.plotDefault2D()
+            this.plotDefault2DInt()
         end
         
         function plotDefault2D(this)
@@ -416,6 +489,19 @@ classdef LC400 < mic.Base
             xlim(this.hAxes2D, [-1 1])
             ylim(this.hAxes2D, [-1 1])
             title(this.hAxes2D, 'x(t) vs. y(t)')
+            
+        end
+        
+        function plotDefault2DInt(this)
+            
+            if isempty(this.hPanel) || ~ishandle(this.hPanel) || ... 
+               isempty(this.hAxes2DInt) || ~ishandle(this.hAxes2DInt) 
+                return
+            end
+            
+            xlim(this.hAxes2DInt, [-1 1])
+            ylim(this.hAxes2DInt, [-1 1])
+            title(this.hAxes2DInt, 'x(t) vs. y(t) (intensity)')
             
         end
         
@@ -439,11 +525,14 @@ classdef LC400 < mic.Base
             % set(this.hPanelAxes, 'Title', 'Recorded. Left: x(t), y(t). Right: x(t) vs. y(t)');
             this.plotRecorded1D()
             this.plotRecorded2D()
+            this.plotRecorded2DInt()
         end
         
         function plotRecorded1D(this)
             
-            if ~ishandle(this.hPanel) || ... 
+            if isempty(this.hPanel) || ...
+               isempty(this.hAxes1D) || ...
+               ~ishandle(this.hPanel) || ... 
                ~ishandle(this.hAxes1D)
                 return 
             end
@@ -475,8 +564,8 @@ classdef LC400 < mic.Base
         
         function plotWavetable2D(this)
             
-            if ~ishandle(this.hPanel) || ... 
-               ~ishandle(this.hAxes2D)
+            if isempty(this.hPanel) || ~ishandle(this.hPanel) || ... 
+               isempty(this.hAxes2D) || ~ishandle(this.hAxes2D)
                return
             end
             
@@ -495,8 +584,8 @@ classdef LC400 < mic.Base
  
         function plotWavetable1D(this)
             
-            if ~ishandle(this.hPanel) || ... 
-               ~ishandle(this.hAxes1D)
+            if isempty(this.hPanel) || ~ishandle(this.hPanel) || ... 
+               isempty(this.hAxes1D) || ~ishandle(this.hAxes1D)
                 return
             end
             
@@ -522,6 +611,7 @@ classdef LC400 < mic.Base
             
             this.plotWavetable1D()
             this.plotWavetable2D()
+            this.plotWavetable2DInt()
             
         end
         
@@ -655,6 +745,11 @@ classdef LC400 < mic.Base
             this.plotRecorded();
             
         end
+        
+        function onEditSigOfKernel(this, src, evt)
+            this.plotRecorded();
+        end
+        
              
         function initUiButtonWrite(this)
             this.uiButtonWrite = mic.ui.common.Button(...
@@ -771,7 +866,7 @@ classdef LC400 < mic.Base
             this.initUiButtonRecord()
             this.initUiEditTimeRecord()
             this.initUiGetSetLogicalActive()
-        
+            this.initUiEditSigOfKernel();
         end
         
         function initUiEditOffsetX(this)
@@ -786,6 +881,7 @@ classdef LC400 < mic.Base
             this.uiEditOffsetX.setTooltip('Global x offset to be applied to written waveform.');
         end
         
+        
         function initUiEditOffsetY(this)
             
             this.uiEditOffsetY = mic.ui.common.Edit( ...
@@ -796,6 +892,21 @@ classdef LC400 < mic.Base
             this.uiEditOffsetY.setMin(-1);
             this.uiEditOffsetY.setMax(1);
             this.uiEditOffsetY.setTooltip('Global y offset to be applied to written waveform.');
+            
+        end
+        
+        function initUiEditSigOfKernel(this)
+            
+            this.uiEditSigOfKernel = mic.ui.common.Edit( ...
+                'cLabel', 'Sigma of Beam', ... 
+                'fhDirectCallback', @this.onEditSigOfKernel, ...
+                'cType', 'd' ...
+            );
+        
+            this.uiEditSigOfKernel.setMin(-1);
+            this.uiEditSigOfKernel.setMax(1);
+            this.uiEditSigOfKernel.set(0.05);
+            this.uiEditSigOfKernel.setTooltip('Sigma of beam used to compute simulated 2D pupil fill.');
             
         end
         
@@ -962,8 +1073,21 @@ classdef LC400 < mic.Base
                 );
             
             dLeft = dLeft + this.dHeightAxes + dSep;
-            this.plotDefault();
             
+            
+            this.hAxes2DInt = axes(...
+                'Parent', this.hPanelAxes,...
+                'Units', 'pixels',...
+                'Position',mic.Utils.lt2lb([dLeft dTop this.dHeightAxes this.dHeightAxes], this.hPanelAxes),...
+                'XColor', [0 0 0],...
+                'YColor', [0 0 0],...
+                'DataAspectRatio',[1 1 1],...
+                'HandleVisibility','on'...
+                );
+            
+            dLeft = dLeft + this.dHeightAxes + dSep;
+            this.plotDefault();
+
         end
         
         
@@ -1076,6 +1200,49 @@ classdef LC400 < mic.Base
         
         function device = newDeviceVirtual(this)
             device = npoint.LC400Virtual();
+        end
+        
+        function [out] = gauss(this, x, sigx, y, sigy)
+
+            if nargin == 5
+                out = exp(-((x/sigx).^2/2+(y/sigy).^2/2)); 
+            elseif nargin == 4;
+                disp('Must input x,sigx,y,sigy in ''gauss'' function')
+            elseif nargin == 3;
+                out = exp(-x.^2/2/sigx^2);
+            elseif nargin == 12;
+                out = exp(-x.^2/2);
+            end
+            
+        end
+        
+        function [X,Y] = getXY(this, Nx, Ny, Lx, Ly)
+
+            % Sample spacing
+
+            dx = Lx/Nx;
+            dy = Ly/Ny;
+
+            % Sampled simulation points 1D 
+
+            x = -Lx/2:dx:Lx/2 - dx;
+            y = -Ly/2:dy:Ly/2 - dy;
+            % u = -1/2/dx: 1/Nx/dx: 1/2/dx - 1/Nx/dx;
+            % v = -1/2/dy: 1/Ny/dy: 1/2/dy - 1/Ny/dy;
+
+            [Y,X] = meshgrid(y,x);
+            % [V,U] = meshgrid(v,u);
+            
+        end
+        
+        % @return {double m x n} return a matrix that represents the
+        % intensity distribution of the scan kernel (beam intensity). 
+        
+        function [dX, dY, dKernelInt] = getKernel(this)
+                        
+            [dX, dY] = this.getXY(this.dNumPixels, this.dNumPixels, 2, 2);
+            dKernelInt = this.gauss(dX, this.uiEditSigOfKernel.get(), dY, this.uiEditSigOfKernel.get());
+            
         end
         
     end
