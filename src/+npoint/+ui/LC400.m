@@ -12,11 +12,14 @@ classdef LC400 < mic.Base
         
         
         lDeviceIsSet
+        % {logical 1x1} true when communicating with real hardware
+        lActive
         
         % {uint8 24x24} - images for the device real/virtual toggle
         u8ToggleOn = imread(fullfile(mic.Utils.pathImg(), 'toggle', 'horiz-1', 'toggle-horiz-24-true.png'));     
         u8ToggleOff = imread(fullfile(mic.Utils.pathImg(), 'toggle', 'horiz-1', 'toggle-horiz-24-false-yellow.png'));           
         
+        lShowDevice = false
         hAxes2D
         hAxes2DSim
         hAxes2DInt
@@ -45,6 +48,9 @@ classdef LC400 < mic.Base
         dWidthButton = 150
         dHeightButton = 24
         dWidthEdit = 80
+        
+        % {mic.TaskSequence 1x1} see getSequenceWriteIllum
+        sequenceWriteIllum
                 
         
         
@@ -52,27 +58,30 @@ classdef LC400 < mic.Base
         % @return [i32X, i32Y] wavetable values in [-2^20/2, +2^20/2] 
         fhGet20BitWaveforms
         
-        cLabelWrite = 'Write'
-        cLabelSetIllum = 'Set Illumination'
+        % {function_handle 1x1} returns {char 1xm} path of the recipe that
+        % was used to create the waveforms returned by fhGet20BitWaveforms
+        fhGetPathOfRecipe
+        
+        % {char 1xm} storage of the path of the recipe that is currently
+        % loaded
+        cPathOfRecipe = ''
+        
         cLabelRead = 'Read Wavetable & Plot'
         cLabelRecord = 'Record Motion & Plot'
         
-        uiButtonWrite
         uiButtonRead
         uiEditTimeRead
         
-        uiButtonSetIllum
-        uiButtonMore
+        uiButtonPlotTools
         uiEditOffsetX
         uiEditOffsetY
+        uiSequenceWriteIllum
         
         uiEditSigOfKernel
         
-        uiToggleDevice
         uiTextLabelDevice
         lAskOnDeviceClick = true
         
-        uiGetSetLogicalActive % Motion Start / Stop
         uiButtonRecord
         uiEditTimeRecord
         
@@ -84,6 +93,8 @@ classdef LC400 < mic.Base
         
         % {mic.Clock 1x1} clock - the clock
         clock
+        % {mic.Clock | mic.ui.Clock 1x1}
+        uiClock
         
         
         
@@ -106,6 +117,9 @@ classdef LC400 < mic.Base
     
     properties (SetAccess = private)
         
+                uiGetSetLogicalActive % Motion Start / Stop
+
+        
     end
     
     
@@ -114,7 +128,7 @@ classdef LC400 < mic.Base
         function this = LC400(varargin)
             
             
-            % Apply varargin
+            % Apply varargin            
             
             for k = 1 : 2: length(varargin)
                 % this.msg(sprintf('passed in %s', varargin{k}));
@@ -123,7 +137,16 @@ classdef LC400 < mic.Base
                     this.(varargin{k}) = varargin{k + 1};
                 end
             end
-                        
+               
+            
+            if ~isa(this.clock, 'mic.Clock')
+                error('clock must be mic.Clock');
+            end
+            
+            if ~isa(this.uiClock, 'mic.Clock') && ~isa(this.uiClock, 'mic.ui.Clock')
+                error('uiClock must be mic.Clock or mic.ui.Clock');
+            end
+            
             this.init();
             
         end
@@ -162,11 +185,9 @@ classdef LC400 < mic.Base
             this.msg('delete', this.u8_MSG_TYPE_CLASS_INIT_DELETE);
             this.save();
             
-            delete(this.uiButtonWrite)
             delete(this.uiButtonRead)
             delete(this.uiEditTimeRead)
         
-            delete(this.uiToggleDevice)
             delete(this.uiTextLabelDevice)
             
             delete(this.uiGetSetLogicalActive) % Motion Start / Stop
@@ -184,14 +205,12 @@ classdef LC400 < mic.Base
         function setDevice(this, device)
             
             if isempty(device)
-                this.uiToggleDevice.disable();
                 this.device = device;
                 return;
             end
             
             if this.isDevice(device)
                 this.device = device;
-                this.uiToggleDevice.enable();
                 
                 % Connect the mic.ui.device.GetSetLogical to a device
                 device = npoint.device.GetSetLogicalFromLLC400(this.device, 'active');
@@ -209,9 +228,33 @@ classdef LC400 < mic.Base
             
             if this.isDevice(device)
                 this.deviceVirtual = device;
+                                
+                % Update the virtual device of the mic.ui.device.GetSetLogical
+                this.uiGetSetLogicalActive.setDeviceVirtual(...
+                    npoint.device.GetSetLogicalFromLLC400(this.deviceVirtual, 'active') ...
+                );
+                
             end
             
         end
+        
+        function setColorOfBackgroundToWarning(this)
+            this.setColorOfBackground([1 1 0.85]);
+        end
+        
+        function setColorOfBackgroundToDefault(this)
+            this.setColorOfBackground([0.94 0.94 0.94]);
+        end
+        
+        function setColorOfBackground(this, dColor)
+            if ishandle(this.hPanel)
+                set(this.hPanel, 'BackgroundColor', dColor);
+                this.uiEditOffsetX.setColorOfBackground(dColor);
+                this.uiEditOffsetY.setColorOfBackground(dColor);
+            end
+            
+        end
+        
         
         function turnOn(this)
         
@@ -221,18 +264,13 @@ classdef LC400 < mic.Base
                 cMsg = 'Cannot turn on mic.ui.device.* instances until a device that implements mic.interface.device.* has been provided with setDevice()';
                 cTitle = 'turnOn() Error';
                 msgbox(cMsg, cTitle, 'warn');
-                
-                this.uiToggleDevice.set(false);
-                % this.uiToggleDevice.setTooltip(this.cTooltipDeviceOff);
             
                 return
             end
             
-            this.uiToggleDevice.set(true);
-            % this.uiToggleDevice.setTooltip(this.cTooltipDeviceOn);
+            this.lActive = true;
             this.uiGetSetLogicalActive.turnOn();
-
-            % notify(this, 'eTurnOn');
+            this.setColorOfBackgroundToDefault();
             
         end
         
@@ -243,16 +281,15 @@ classdef LC400 < mic.Base
                 this.setDeviceVirtual(this.newDeviceVirtual());
             end
             
-            this.uiToggleDevice.set(false);
-            % this.uiToggleDevice.setTooltip(this.cTooltipDeviceOff);
-            
+            this.lActive = false;
             this.uiGetSetLogicalActive.turnOff();
-            % notify(this, 'eTurnOff');
+            this.setColorOfBackgroundToWarning();
+
         end
         
         function build(this, hParent, dLeft, dTop)
                     
-            dWidthPanel = 600;
+            dWidthPanel = 650;
             dHeightPanel = 70;
             this.hPanel = uipanel( ...
                 'Parent', hParent, ...
@@ -264,21 +301,16 @@ classdef LC400 < mic.Base
                 ...%'BorderWidth',0, ... 
                 'Position', mic.Utils.lt2lb([dLeft dTop dWidthPanel dHeightPanel], hParent)...
             );
-            drawnow;
+            
+        
+            
             
             dSep = 10;
             dTop = 20;
             dLeft = 10;
             
-            dLeft = 10;
-            
-            this.uiTextLabelDevice.build(this.hPanel, dLeft, dTop, 24, 24);
-            this.uiToggleDevice.build(this.hPanel, dLeft, dTop + 14, 24, 24);
-            this.uiToggleDevice.disable();
-            
-            dLeft = 50;
-            dWidthUi = 150;
-            this.uiButtonSetIllum.build(this.hPanel, dLeft, dTop + 10, dWidthUi, this.dHeightButton);
+            dWidthUi = 220;
+            this.uiSequenceWriteIllum.build(this.hPanel, dLeft, dTop + 10, dWidthUi);
             dLeft = dLeft + dWidthUi + dSep;
             
             dWidthUi = 50;
@@ -294,9 +326,110 @@ classdef LC400 < mic.Base
             dLeft = dLeft + 125 + dSep;
             
             dWidthUi = 100;
-            this.uiButtonMore.build(this.hPanel, dLeft, dTop + 10, dWidthUi, this.dHeightButton);
+            this.uiButtonPlotTools.build(this.hPanel, dLeft, dTop + 10, dWidthUi, this.dHeightButton);
             dLeft = dLeft + dWidthUi + dSep;
+            
+            if this.lActive
+                this.setColorOfBackgroundToDefault();
+            else
+                this.setColorOfBackgroundToWarning();
+            end
                         
+        end
+        
+        
+        
+        % Returns{char 1xm} storage of the path of the recipe that is currently
+        % loaded.  
+        function c = getPathOfRecipe(this)
+            c = this.cPathOfRecipe;
+        end
+        
+        function setWavetablesFromGetter(this)
+            
+            [i32Ch1, i32Ch2] = this.fhGet20BitWaveforms();
+            this.cPathOfRecipe = this.fhGetPathOfRecipe();
+            
+            % Add offsets
+            
+            i32Ch1 = i32Ch1 + int32(this.uiEditOffsetX.get() * 2^19);
+            i32Ch2 = i32Ch2 + int32(this.uiEditOffsetY.get() * 2^19);
+            
+            this.getDevice().setWavetable(uint8(1), i32Ch1');
+            this.getDevice().setWavetable(uint8(2), i32Ch2');
+            
+        end
+        
+        
+        % Returns a {mic.TaskSequence 1x1} that: fetches the 20-bit waveforms
+        % using the supplied getter (this.fhGet20BitWaveforms), applies the
+        % offset in the edit boxes, writes the wavetables to the LC400 and
+        % begins scanning.  
+        % @return {mic.TaskSequence 1x1}
+        
+        function task = getSequenceWriteIllum(this)
+            
+            if isempty(this.sequenceWriteIllum)
+                
+                ceTasks = { ...
+                    mic.Task( ...
+                        'fhExecute', @() this.uiButtonRead.disable(), ...
+                        'fhGetMessage', @() 'Disabling read button (plot tools)' ...
+                    ), ...
+                    mic.Task( ...
+                        'fhExecute', @() this.uiButtonRecord.disable(), ...
+                        'fhGetMessage', @() 'Disabling record button (plot tools)' ...
+                    ), ...
+                    mic.Task(...
+                        'fhExecute', @() this.uiGetSetLogicalActive.disable(), ...
+                        'fhGetMessage', @() 'Disabling start/stop button' ...
+                    ), ...
+                    ... % stop motion
+                    mic.Task.fromUiGetSetLogical(this.uiGetSetLogicalActive, false, 'motion') ... 
+                    ... % write the data
+                    mic.Task(...
+                        'fhExecute', @this.setWavetablesFromGetter, ...
+                        'fhGetMessage', @() 'Writing 20-bit waveforms to LC400 ...' ...
+                    ), ...
+                    ... % start motion
+                    mic.Task.fromUiGetSetLogical(this.uiGetSetLogicalActive, true, 'motion'), ... 
+                    mic.Task(...
+                        'fhExecute', @() this.uiGetSetLogicalActive.enable(), ...
+                        'fhGetMessage', @() 'Enabling start/stop button' ...
+                    ), ...
+                    mic.Task( ...
+                        'fhExecute', @() this.uiButtonRead.enable(), ...
+                        'fhGetMessage', @() 'Enabling read button (plot tools)' ...
+                    ), ...
+                    mic.Task( ...
+                        'fhExecute', @() this.uiButtonRecord.enable(), ...
+                        'fhGetMessage', @() 'Enabling record button (plot tools)' ...
+                    ) ...
+                };
+
+                % cStamp = datestr(datevec(now), 'yyyymmdd-HHMMSS', 'local');
+                this.sequenceWriteIllum = mic.TaskSequence( ...
+                    'cName', [this.cName, 'task-sequence-lc400-stop-then-write-wavetable-then-start'] , ...
+                    'clock', this.clock, ...
+                    'ceTasks', ceTasks, ...
+                    'dPeriod', 0.1, ...
+                    'cDescription', 'Write Illum & Start Scan' ...
+                );
+            end
+            
+            task = this.sequenceWriteIllum;
+        end
+        
+        function initUiSequenceWriteIllum(this)
+            
+            this.uiSequenceWriteIllum = mic.ui.TaskSequence(...
+                'cName', [this.cName, 'ui-task-sequence-lc400-stop-then-write-wavetable-then-start'], ...
+                'task', this.getSequenceWriteIllum(), ...
+                'lShowIsDone', false, ...
+                'clock', this.uiClock ...
+            );
+        
+            
         end
                 
         
@@ -343,11 +476,7 @@ classdef LC400 < mic.Base
             
             
             
-            %{
-            this.uiButtonWrite.build(this.hPanelWavetable, dLeft, dTop, this.dWidthButton, this.dHeightButton); 
-            % dTop = dTop + dSep;
-            dLeft = dLeft + this.dWidthButton + dSep;
-            %}
+
             
             this.uiButtonRead.build(this.hFigure, dLeft, dTop + 12, this.dWidthButton, this.dHeightButton); 
             % dTop = dTop + dSep;
@@ -617,72 +746,14 @@ classdef LC400 < mic.Base
         end
         
         
-        function onWrite(this, src, evt)
-                                    
-            [i32Ch1, i32Ch2] = this.fhGet20BitWaveforms();
-            
-            % Prepare UI for writing state
-            this.uiButtonWrite.setText('Writing ...');
-            
-            % Stop motion
-            this.uiGetSetLogicalActive.set(false);
-            
-            this.uiCommPrep();
-            
-            % Write data
-            this.getDevice().setWavetable(uint8(1), i32Ch1');
-            this.getDevice().setWavetable(uint8(2), i32Ch2');
-            
-            this.uiCommPrepUndo();
-             
-            this.uiButtonWrite.setText(this.cLabelWrite)
-            drawnow;
-            
-            h = msgbox( ...
-                'The waveform has been written.  Click "Start Scan" to start.', ...
-                'Success!', ...
-                'help', ...
-                'modal' ...
-            );            
-        end
         
         
         
         
-        function uiCommPrep(this)
-            
-            % If the mic.ui.device.GetSetLogical is polling
-            % real hardware, turn it off (make it talk to virtual) while
-            % reading so it doesn't interrupt
-            
-            if (this.uiToggleDevice.get())
-                lVal = this.uiGetSetLogicalActive.get();
-                this.uiGetSetLogicalActive.turnOff();
-                this.uiGetSetLogicalActive.set(lVal); % so it shows "real" value when in virtual mode
-            end
-              
-            % Disable 
-            this.uiGetSetLogicalActive.disable();
-            this.uiButtonRecord.disable();
-            this.uiButtonWrite.disable();
-            drawnow;
-            
-            
-            
-        end
         
-        function uiCommPrepUndo(this)
-            
-            % Re-enable
-            if (this.uiToggleDevice.get())
-                this.uiGetSetLogicalActive.turnOn()
-            end
-            this.uiGetSetLogicalActive.enable();
-            this.uiButtonRecord.enable();
-            this.uiButtonWrite.enable();
-            
-            
-        end
+     
+        
+       
         
         function onUiToggleDeviceChange(this, src, evt)
             if src.get()
@@ -699,9 +770,16 @@ classdef LC400 < mic.Base
             cLabel = sprintf('Reading %u ...', u32Samples);
             this.uiButtonRead.setText(cLabel);
                                    
-            this.uiCommPrep()
+            this.uiGetSetLogicalActive.disable();
+            this.uiButtonRead.disable();
+            this.uiButtonRecord.disable();
+            
             d = this.getDevice().getWavetables(u32Samples);
-            this.uiCommPrepUndo()
+            
+            
+            this.uiGetSetLogicalActive.enable();
+            this.uiButtonRead.enable();
+            this.uiButtonRecord.enable();
             
             this.uiButtonRead.setText(this.cLabelRead);
             drawnow;
@@ -725,9 +803,18 @@ classdef LC400 < mic.Base
             cMsg = sprintf('Rec. %u ...', u32Samples);
             this.uiButtonRecord.setText(cMsg);
             
-            this.uiCommPrep();
+            this.uiGetSetLogicalActive.disable();
+            this.uiButtonRead.disable();
+            this.uiButtonRecord.disable();
+            
+            
             dResult = this.getDevice().record(u32Samples);
-            this.uiCommPrepUndo();
+            
+            
+             this.uiGetSetLogicalActive.enable();
+            this.uiButtonRead.enable();
+            this.uiButtonRecord.enable();
+            
             
             % Revert UI back to normal after recording done
             this.uiButtonRecord.setText(this.cLabelRecord);
@@ -752,13 +839,7 @@ classdef LC400 < mic.Base
         end
         
              
-        function initUiButtonWrite(this)
-            this.uiButtonWrite = mic.ui.common.Button(...
-                'cText', this.cLabelWrite, ...
-                'fhOnClick', @this.onWrite ...
-            );
-            this.uiButtonWrite.setTooltip('Write the waveform data to the LC400 controller.  This can take several seconds');
-        end
+        
         
         function initUiButtonRead(this)
             this.uiButtonRead = mic.ui.common.Button(...
@@ -851,16 +932,12 @@ classdef LC400 < mic.Base
         function init(this)
             
             
-            this.setDeviceVirtual(this.newDeviceVirtual());
-            this.initUiButtonSetIllum();
             this.initUiEditOffsetX();
             this.initUiEditOffsetY();
-            this.initUiButtonMore();
-            this.initUiToggleDevice();
+            this.initUiButtonPlotTools();
             % this.initPanelWavetable();
             % this.initPanelMotion();
             
-            this.initUiButtonWrite()
             this.initUiButtonRead()
             this.initUiEditTimeRead()
             
@@ -868,6 +945,13 @@ classdef LC400 < mic.Base
             this.initUiEditTimeRecord()
             this.initUiGetSetLogicalActive()
             this.initUiEditSigOfKernel();
+            
+            % do last since may need access to several things
+            this.initUiSequenceWriteIllum();
+            
+            this.setDeviceVirtual(this.newDeviceVirtual());
+
+
         end
         
         function initUiEditOffsetX(this)
@@ -911,116 +995,27 @@ classdef LC400 < mic.Base
             
         end
         
-        function initUiButtonSetIllum(this)
-            
-            this.uiButtonSetIllum = mic.ui.common.Button( ...
-                'cText', this.cLabelSetIllum, ...
-                'fhDirectCallback', @this.onClickSetIllum ...
-            );
         
-            this.uiButtonSetIllum.setTooltip('Write the waveform data to the LC400 controller then start mechanical scanning.  This can take several seconds');
+        function initUiButtonPlotTools(this)
             
-        end
-        
-        function initUiButtonMore(this)
-            
-            this.uiButtonMore = mic.ui.common.Button( ...
+            this.uiButtonPlotTools = mic.ui.common.Button( ...
                 'cText', 'Plot Tools', ...
-                'fhDirectCallback', @this.onClickMore ...
+                'fhDirectCallback', @this.onClickPlotTools ...
             );
         
-            this.uiButtonSetIllum.setTooltip('Show read, record, and plot tools.');
             
         end
         
-        function onClickSetIllum(this, src, evt)
-            
-            this.msg('onClickSetIllum', this.u8_MSG_TYPE_INFO);
-            
-            [i32Ch1, i32Ch2] = this.fhGet20BitWaveforms();
-            
-            % Add offsets
-            
-            i32Ch1 = i32Ch1 + int32(this.uiEditOffsetX.get() * 2^19);
-            i32Ch2 = i32Ch2 + int32(this.uiEditOffsetY.get() * 2^19);
-            
-            % Prepare UI for writing state
-            this.uiButtonWrite.setText('Writing ...');
-            this.uiButtonSetIllum.setText('Writing ...');
-            
-            % Stop motion
-            this.uiGetSetLogicalActive.set(false);
-            
-            this.uiCommPrep();
-            
-            % Write data
-            this.getDevice().setWavetable(uint8(1), i32Ch1');
-            this.getDevice().setWavetable(uint8(2), i32Ch2');
-            
-            this.uiCommPrepUndo();
-             
-            this.uiButtonWrite.setText(this.cLabelWrite)
-            this.uiButtonSetIllum.setText(this.cLabelSetIllum)
-            
-            % Start motion
-            this.uiGetSetLogicalActive.set(true);
-            drawnow;
-            
-            %{
-            h = msgbox( ...
-                'The waveform has been written to the LC400 and scanning motion has started.', ...
-                'Success!', ...
-                'help', ...
-                'modal' ...
-            ); 
-            %}
-            
-        end
         
-        function onClickMore(this, src, evt)
+
+        
+        
+        
+        function onClickPlotTools(this, src, evt)
             this.buildFigure()
         end
         
-        function initUiToggleDevice(this)
-            
-            
-            
-            this.uiTextLabelDevice = mic.ui.common.Text(...
-                'cVal', 'Api', ...
-                'cAlign', 'center'...
-            );
         
-            st1 = struct();
-            st1.lAsk        = this.lAskOnDeviceClick;
-            st1.cTitle      = 'Switch?';
-            st1.cQuestion   = 'Do you want to change from the virtual LC400 to the real LC400?';
-            st1.cAnswer1    = 'Yes of course!';
-            st1.cAnswer2    = 'No not yet.';
-            st1.cDefault    = st1.cAnswer2;
-
-
-            st2 = struct();
-            st2.lAsk        = this.lAskOnDeviceClick;
-            st2.cTitle      = 'Switch?';
-            st2.cQuestion   = 'Do you want to change from the real LC400 to the virtual LC400?';
-            st2.cAnswer1    = 'Yes of course!';
-            st2.cAnswer2    = 'No not yet.';
-            st2.cDefault    = st2.cAnswer2;
-
-            this.uiToggleDevice = mic.ui.common.Toggle( ...
-                'cTextFalse', 'enable', ...   
-                'cTextTrue', 'disable', ...  
-                'lImg', true, ...
-                'u8ImgOff', this.u8ToggleOff, ...
-                'u8ImgOn', this.u8ToggleOn, ...
-                'stF2TOptions', st1, ...
-                'stT2FOptions', st2 ...
-            );
-        
-            this.uiToggleDevice.disable();
-            addlistener(this.uiToggleDevice,   'eChange', @this.onUiToggleDeviceChange);
-            
-        end
         
         
         function buildPanelAxes(this)
@@ -1093,11 +1088,11 @@ classdef LC400 < mic.Base
         
         
         function l = isActive(this)
-            l = this.uiToggleDevice.get();
+            l = this.lActive;
         end
         
         function device = getDevice(this)
-            if this.uiToggleDevice.get()
+            if this.lActive
                 device = this.device;
             else
                 device = this.deviceVirtual;
@@ -1142,8 +1137,6 @@ classdef LC400 < mic.Base
             dTop = 20;
             dLeft = 10;
             
-            this.uiButtonWrite.build(this.hPanelWavetable, dLeft, dTop, this.dWidthButton, this.dHeightButton); 
-            % dTop = dTop + dSep;
             dLeft = dLeft + this.dWidthButton + dSep;
             
             this.uiButtonRead.build(this.hPanelWavetable, dLeft, dTop, this.dWidthButton, this.dHeightButton); 
