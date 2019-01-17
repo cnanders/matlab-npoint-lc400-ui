@@ -412,7 +412,7 @@ classdef LC400 < mic.Base
                     'cName', [this.cName, 'task-sequence-lc400-stop-then-write-wavetable-then-start'] , ...
                     'clock', this.clock, ...
                     'ceTasks', ceTasks, ...
-                    'dPeriod', 0.1, ...
+                    'dPeriod', 0.2, ...
                     'cDescription', 'Write Illum & Start Scan' ...
                 );
             end
@@ -774,8 +774,11 @@ classdef LC400 < mic.Base
             this.uiButtonRead.disable();
             this.uiButtonRecord.disable();
             
+            this.uiSequenceWriteIllum.stop(); % stops simultaneous multi-communication with LC400
+            
             d = this.getDevice().getWavetables(u32Samples);
             
+            this.uiSequenceWriteIllum.start();
             
             this.uiGetSetLogicalActive.enable();
             this.uiButtonRead.enable();
