@@ -5,6 +5,12 @@ classdef LC400 < mic.Base
     properties
         
         cName = 'Test'
+        
+        % These are the UI for activating the hardware that gives the 
+        % software real data
+        
+        % {mic.ui.device.GetSetLogical 1x1}
+        uiComm
 
     end
     
@@ -290,7 +296,7 @@ classdef LC400 < mic.Base
         function build(this, hParent, dLeft, dTop)
                     
             dWidthPanel = 650;
-            dHeightPanel = 70;
+            dHeightPanel = 110;
             this.hPanel = uipanel( ...
                 'Parent', hParent, ...
                 'Units', 'pixels', ...
@@ -303,11 +309,13 @@ classdef LC400 < mic.Base
             );
             
         
-            
-            
             dSep = 10;
-            dTop = 20;
+            dTop = 25;
             dLeft = 10;
+        
+            this.uiComm.build(this.hPanel, dLeft, dTop);
+            dTop = dTop + 24 + dSep;
+            
             
             dWidthUi = 220;
             this.uiSequenceWriteIllum.build(this.hPanel, dLeft, dTop + 10, dWidthUi);
@@ -929,12 +937,33 @@ classdef LC400 < mic.Base
         end
         
         
+        function initUiComm(this)
+            
+            
+            % Configure the mic.ui.common.Toggle instance
+            ceVararginCommandToggle = {...
+                'cTextTrue', 'Disconnect', ...
+                'cTextFalse', 'Connect' ...
+            };
+
+            this.uiComm = mic.ui.device.GetSetLogical(...
+                'clock', this.clock, ...
+                'ceVararginCommandToggle', ceVararginCommandToggle, ...
+                'dWidthName', 130, ...
+                'lShowLabels', false, ...
+                'lShowDevice', false, ...
+                'lShowInitButton', false, ...
+                'cName', [this.cName, '-nPoint-LC400-comm'], ...
+                'cLabel', 'nPoint LC400' ...
+            );
+        
+        end
         
         
         
         function init(this)
             
-            
+            this.initUiComm();
             this.initUiEditOffsetX();
             this.initUiEditOffsetY();
             this.initUiButtonPlotTools();
