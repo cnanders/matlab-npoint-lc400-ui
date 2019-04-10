@@ -1,6 +1,7 @@
-if exist('purge') > 0
+try
     purge
 end
+
 
 [cDirThis, cName, cExt] = fileparts(mfilename('fullpath'));
 cDirSrc = fullfile(cDirThis, '..', '..', 'src');
@@ -40,8 +41,10 @@ hFigure = figure( ...
 
 clock = mic.Clock('master'); 
 uiClock = mic.ui.Clock(clock);
+np = npoint.LC400Virtual();
 
 app = npoint.ui.LC400(...
+    'fhGetNPoint', @() np, ...
     'clock', clock, ...
     'uiClock', clock, ...
     'fhGet20BitWaveforms', @get20BitWaveforms, ...
