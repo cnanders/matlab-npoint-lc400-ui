@@ -5,14 +5,11 @@ end
 
 [cDirThis, cName, cExt] = fileparts(mfilename('fullpath'));
 cDirSrc = fullfile(cDirThis, '..', '..', 'src');
-cDirVendor = fullfile(cDirThis, '..', '..', 'vendor');
+cDirMpm = fullfile(cDirThis, '..', '..', 'mpm-packages');
 
-% Add src
+% Dependencies
 addpath(genpath(cDirSrc));
-
-% Add dependencies 
-addpath(genpath(fullfile(cDirVendor, 'github', 'cnanders', 'matlab-npoint-lc400', 'src')));
-addpath(genpath(fullfile(cDirVendor, 'github', 'cnanders', 'matlab-instrument-control', 'src')));
+addpath(genpath(cDirMpm));
 
 % Optionally configure with the directory where waveforms are saved
 % The default is to use pwd
