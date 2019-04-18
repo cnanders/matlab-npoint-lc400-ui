@@ -10,6 +10,7 @@ classdef LC400 < mic.Base
         % software real data
         
         
+        dColorPlotFiducials = [0.3 0.3 0.3]
 
     end
     
@@ -115,14 +116,20 @@ classdef LC400 < mic.Base
         
         % {function_handle 1x1} returns {< noint.AbstractLC400 1x1 or []}
         fhGetNPoint
+        
+        % {struct 1x1} cached values of wavetable written to hardware
+        stCache
+        
+        hAxesPreview
+        hPlotPreview
     end
     
     
     properties (SetAccess = private)
         
         uiGetSetLogicalActive % Motion Start / Stop
-        dWidth = 630
-        dHeight = 70
+        dWidth = 710
+        dHeight = 100
         
         lWritingIllum = false
         
@@ -158,6 +165,7 @@ classdef LC400 < mic.Base
         end
         
         
+        
         function st = save(this)
             st = struct();
             st.uiEditOffsetX = this.uiEditOffsetX.save();
@@ -187,6 +195,8 @@ classdef LC400 < mic.Base
         end
         
         function delete(this)
+            
+            this.uiClock.remove([this.id(), '-plot-preview']);
             
             this.msg('delete', this.u8_MSG_TYPE_CLASS_INIT_DELETE);
             this.save();
@@ -256,8 +266,84 @@ classdef LC400 < mic.Base
             this.uiButtonPlotTools.build(this.hPanel, dLeft, dTop + 10, dWidthUi, this.dHeightButton);
             dLeft = dLeft + dWidthUi + dSep;
             
+            dSize = 80;
+            dTop = 15;
+            
+            this.hAxesPreview = axes(...
+                'Parent', this.hPanel,...
+                'Units', 'pixels',...
+                'Color', [0 0 0], ...
+                'Position',mic.Utils.lt2lb([...
+                    dLeft,...
+                    dTop,...
+                    dSize,...
+                    dSize], this.hPanel),...
+                'XColor', [0 0 0],...
+                'YColor', [0 0 0],...
+                'DataAspectRatio',[1 1 1],...
+                'HandleVisibility','on'...
+           );
+            
+           dTop = dTop + 120;
+           
+           this.plotPreview();
             
                         
+        end
+        
+        function plotPreview(this)
+            
+            if isempty(this.hAxesPreview)
+                return
+            end
+            
+            if ~ishandle(this.hAxesPreview)
+                return
+            end
+            
+            
+            st = this.getWavetables();
+            
+            if isempty(this.hPlotPreview)
+                this.hPlotPreview = plot(...
+                    this.hAxesPreview, ...
+                    st.x, st.y, 'm', ...
+                    'LineWidth', 2 ...
+                );
+            
+                % Create plotting data for circles at sigma = 0.3 - 1.0
+
+                dSig = [0.3:0.1:1.0];
+                dPhase = linspace(0, 2*pi, 100);
+
+                for (k = 1:length(dSig))
+
+                    x = dSig(k)*cos(dPhase);
+                    y = dSig(k)*sin(dPhase);
+                    line( ...
+                        x, y, ...
+                        'color', this.dColorPlotFiducials, ...
+                        'LineWidth', 1, ...
+                        'Parent', this.hAxesPreview ...
+                    );
+
+                end
+            else
+                this.hPlotPreview.XData = st.x;
+                this.hPlotPreview.YData = st.y;
+            end
+            set(this.hAxesPreview, 'XTick', [], 'YTick', []);
+            
+            if this.getActive()
+                set(this.hAxesPreview, 'Color', 'k');
+            else
+                set(this.hAxesPreview, 'Color', 'r');
+            end
+            xlim(this.hAxesPreview, [-1 1])
+            ylim(this.hAxesPreview, [-1 1])
+            % axis(this.hAxesPreview, 'off')
+            
+            
         end
         
         
@@ -278,9 +364,20 @@ classdef LC400 < mic.Base
             i32Ch1 = i32Ch1 + int32(this.uiEditOffsetX.get() * 2^19);
             i32Ch2 = i32Ch2 + int32(this.uiEditOffsetY.get() * 2^19);
             
-            comm = this.fhGetNPoint();
-            comm.setWavetable(uint8(1), i32Ch1');
-            comm.setWavetable(uint8(2), i32Ch2');
+            try
+                comm = this.fhGetNPoint();
+                comm.setWavetable(uint8(1), i32Ch1');
+                comm.setWavetable(uint8(2), i32Ch2');
+            catch
+                return
+            end
+            
+            % Update the cache 
+            this.stCache.x = double(i32Ch1) / 2^19;
+            this.stCache.y = double(i32Ch2) / 2^19;
+            this.stCache.t = 24e-6 * double(1 : length(i32Ch1));
+            
+            this.plotPreview();
             
         end
         
@@ -706,9 +803,13 @@ classdef LC400 < mic.Base
         end
         
         
-        function onRead(this, src, evt)
-                                    
-            u32Samples = uint32(this.uiEditTimeRead.get() / 2000 * 83333);
+        function readWavetableToEndIndex(this)
+            comm = this.fhGetNPoint();
+            u32Samples = comm.getEndIndexOfWavetable(1);
+            this.readWavetable(this, u32Samples);
+        end
+        
+        function readWavetable(this, u32Samples)
             
             cLabel = sprintf('Reading %u ...', u32Samples);
             this.uiButtonRead.setText(cLabel);
@@ -731,11 +832,18 @@ classdef LC400 < mic.Base
             this.uiButtonRead.setText(this.cLabelRead);
             drawnow;
 
-           
-            
             this.dAmpCh1 = d(1, :) / 2^19;
             this.dAmpCh2 = d(2, :) / 2^19;
             this.dTime = 24e-6 * double(1 : u32Samples);
+            
+        end
+        
+        
+        
+        function onRead(this, src, evt)
+                                    
+            u32Samples = uint32(this.uiEditTimeRead.get() / 2000 * 83333);
+            this.readWavetable(u32Samples);
             this.plotWavetable();
             
         end
@@ -837,6 +945,39 @@ classdef LC400 < mic.Base
             
         end
         
+        % Returns the wavetable data loaded on the hardware.  Amplitude is
+        % relative [-1 : 1] to the max mechanical deflection of the hardware
+        % @typedef {struct 1x1} WavetableData
+        % @property {double 1xm} x - x amplitude [-1 : 1]
+        % @property {double 1xm} y - y amplitude [-1 : 1]
+        % @property {double 1xm} t - time (sec)
+        % @return {WavetableData 1x1}
+        
+        function st = getWavetables(this)
+            st = this.stCache;
+        end
+        
+        
+        % Reads wavetable data from the hardware up to the end index
+        % and updates local state stCache
+        function updateCacheOfWavetable(this)
+            
+            try
+            	comm = this.fhGetNPoint();
+                u32Samples = comm.getEndIndexOfWavetable(1);
+                d = comm.getWavetables(u32Samples);
+            catch
+                return
+            end
+            
+            this.stCache.x = d(1, :) / 2^19;
+            this.stCache.y = d(2, :) / 2^19;
+            this.stCache.t = 24e-6 * double(1 : u32Samples);
+            
+            this.plotPreview();
+
+        end
+        
         function l = getActive(this)
             
             comm = this.fhGetNPoint();
@@ -915,8 +1056,22 @@ classdef LC400 < mic.Base
             
             % do last since may need access to several things
             this.initUiSequenceWriteIllum();
+            
+            this.stCache = struct();
+            this.stCache.x = [];
+            this.stCache.y = [];
+            this.stCache.t = [];
+            this.updateCacheOfWavetable();
+            
+            this.uiClock.add(...
+                @this.plotPreview, ...
+                [this.id(), '-plot-preview'], ...
+                1 ...
+            );
 
         end
+        
+        
         
         function initUiEditOffsetX(this)
             

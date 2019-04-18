@@ -1,1 +1,6 @@
-{"dependencies":["matlab_instrument_control","matlab_npoint_lc400"]}
+{
+	"dependencies":[
+		"matlab_instrument_control",
+		"matlab_npoint_lc400"
+	]
+}

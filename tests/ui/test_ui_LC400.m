@@ -21,8 +21,8 @@ cDir = fullfile( ...
 
 dScreenSize = get(0, 'ScreenSize');
         
-dWidth = 650;
-dHeight = 200;
+dWidth = 850;
+dHeight = 180;
 
 hFigure = figure( ...
     'NumberTitle', 'off', ...
