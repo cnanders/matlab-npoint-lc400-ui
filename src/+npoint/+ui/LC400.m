@@ -11,6 +11,8 @@ classdef LC400 < mic.Base
         
         
         dColorPlotFiducials = [0.3 0.3 0.3]
+        dColorGreen = [.85, 1, .85];
+        dColorRed = [1, .85, .85];
 
     end
     
@@ -335,9 +337,9 @@ classdef LC400 < mic.Base
             set(this.hAxesPreview, 'XTick', [], 'YTick', []);
             
             if this.getActive()
-                set(this.hAxesPreview, 'Color', 'k');
+                set(this.hAxesPreview, 'Color', this.dColorGreen);
             else
-                set(this.hAxesPreview, 'Color', 'r');
+                set(this.hAxesPreview, 'Color', this.dColorRed);
             end
             xlim(this.hAxesPreview, [-1 1])
             ylim(this.hAxesPreview, [-1 1])
@@ -488,6 +490,41 @@ classdef LC400 < mic.Base
         
             
         end
+        
+        % Reads wavetable data from the hardware up to the end index
+        % and updates local state stCache
+        function updateCacheOfWavetable(this)
+            
+            try
+            	comm = this.fhGetNPoint();
+                u32Samples = comm.getEndIndexOfWavetable(1);
+                d = comm.getWavetables(u32Samples);
+            catch mE
+                error(getReport(mE))
+                return
+            end
+            
+            this.stCache.x = d(1, :) / 2^19;
+            this.stCache.y = d(2, :) / 2^19;
+            this.stCache.t = 24e-6 * double(1 : u32Samples);
+            
+            this.plotPreview();
+
+        end
+        
+        
+        % Returns the wavetable data loaded on the hardware.  Amplitude is
+        % relative [-1 : 1] to the max mechanical deflection of the hardware
+        % @typedef {struct 1x1} WavetableData
+        % @property {double 1xm} x - x amplitude [-1 : 1]
+        % @property {double 1xm} y - y amplitude [-1 : 1]
+        % @property {double 1xm} t - time (sec)
+        % @return {WavetableData 1x1}
+        
+        function st = getWavetables(this)
+            st = this.stCache;
+        end
+        
                 
         
     end
@@ -945,38 +982,8 @@ classdef LC400 < mic.Base
             
         end
         
-        % Returns the wavetable data loaded on the hardware.  Amplitude is
-        % relative [-1 : 1] to the max mechanical deflection of the hardware
-        % @typedef {struct 1x1} WavetableData
-        % @property {double 1xm} x - x amplitude [-1 : 1]
-        % @property {double 1xm} y - y amplitude [-1 : 1]
-        % @property {double 1xm} t - time (sec)
-        % @return {WavetableData 1x1}
-        
-        function st = getWavetables(this)
-            st = this.stCache;
-        end
         
         
-        % Reads wavetable data from the hardware up to the end index
-        % and updates local state stCache
-        function updateCacheOfWavetable(this)
-            
-            try
-            	comm = this.fhGetNPoint();
-                u32Samples = comm.getEndIndexOfWavetable(1);
-                d = comm.getWavetables(u32Samples);
-            catch
-                return
-            end
-            
-            this.stCache.x = d(1, :) / 2^19;
-            this.stCache.y = d(2, :) / 2^19;
-            this.stCache.t = 24e-6 * double(1 : u32Samples);
-            
-            this.plotPreview();
-
-        end
         
         function l = getActive(this)
             
