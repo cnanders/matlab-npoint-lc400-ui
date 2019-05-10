@@ -124,6 +124,13 @@ classdef LC400 < mic.Base
         
         hAxesPreview
         hPlotPreview
+        
+        % Exposing functions that can be passed in that 
+        % will be evoked when the offset X or offset Y 
+        % changes
+        fhOnChangeOffsetX = @(src, evt) []
+        fhOnChangeOffsetY = @(src, evt) []
+        
     end
     
     
@@ -165,9 +172,7 @@ classdef LC400 < mic.Base
             this.init();
             
         end
-        
-        
-        
+                
         function st = save(this)
             st = struct();
             st.uiEditOffsetX = this.uiEditOffsetX.save();
@@ -1084,6 +1089,7 @@ classdef LC400 < mic.Base
             
             this.uiEditOffsetX = mic.ui.common.Edit( ...
                 'cLabel', 'Offset X', ... 
+                'fhDirectCallback', @this.fhOnChangeOffsetX, ...
                 'cType', 'd' ...
             );
         
@@ -1097,6 +1103,7 @@ classdef LC400 < mic.Base
             
             this.uiEditOffsetY = mic.ui.common.Edit( ...
                 'cLabel', 'Offset Y', ... 
+                'fhDirectCallback', @this.fhOnChangeOffsetY, ...
                 'cType', 'd' ...
             );
         
