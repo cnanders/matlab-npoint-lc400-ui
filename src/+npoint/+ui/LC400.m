@@ -205,7 +205,7 @@ classdef LC400 < mic.Base
             
             this.uiClock.remove([this.id(), '-plot-preview']);
             
-            this.msg('delete', this.u8_MSG_TYPE_CLASS_INIT_DELETE);
+            this.msg('delete', this.u8_MSG_TYPE_CLASS_DELETE);
             this.save();
             
             delete(this.uiButtonRead)
