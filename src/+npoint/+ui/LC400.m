@@ -462,13 +462,11 @@ classdef LC400 < mic.Base
                     ... This task returns true when writing is false.  This is a "cute trick"
                     ... That allows sequences to return a correct state of false while executing
                     ... and true while not executing.  See the last task in the list as well.
-                    %{
                     mic.Task( ...
                         'fhExecute', @() this.setWritingIllum(false), ...
                         'fhIsDone', @() this.lWritingIllum == false, ... 
                         'fhGetMessage', @() 'Setting writing state = false' ...
-                    ), ...
-                    %}
+                    ) ...
                 };
 
                 % cStamp = datestr(datevec(now), 'yyyymmdd-HHMMSS', 'local');
@@ -529,6 +527,20 @@ classdef LC400 < mic.Base
         function st = getWavetables(this)
             st = this.stCache;
         end
+
+        function executePupilFillWriteSequence(this)
+            this.uiSequenceWriteIllum.execute();
+        end
+        function abortPupilFillWriteSequence(this)
+            this.uiSequenceWriteIllum.abort();
+        end
+        function lVal = isExecutingPupilFillSequence(this)
+            lVal = this.uiSequenceWriteIllum.isExecuting();
+        end
+        function lVal = checkIsSequenceFinished(this)
+            lVal = this.uiSequenceWriteIllum.isDone();
+        end
+        
         
                 
         
